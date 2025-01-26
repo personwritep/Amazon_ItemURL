@@ -1,4 +1,4 @@
-​// ==UserScript==
+// ==UserScript==
 // @name        Amazon ItemURL
 // @namespace        http://tampermonkey.net/
 // @version        0.8
@@ -473,5 +473,4 @@ function main(){
                 tr_panel.style.display='none'; }}}
 
 } // main()
-
 
