@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Amazon ItemURL
 // @namespace        http://tampermonkey.net/
-// @version        0.8
+// @version        0.9
 // @description        アマゾン商品ページのURLを短縮・リンクカードの生成
 // @author        Amazon User
 // @match        https://www.amazon.co.jp/*
@@ -13,18 +13,22 @@
 
 
 let panel_disp=0; // パネルの表示フラグ
-let action; // Textリンク Cardリンク の選択フラグ
-let rich; //  カードのリンク情報の表示量
 let action_type=0; // 出力されるリンクタイプ
 
-action=localStorage.getItem('AIURL_Link_action');
-rich=localStorage.getItem('AIURL_Link_rich');
-if(!action || !rich){
+let action=localStorage.getItem('AIURL_Link_action'); // Textリンク Cardリンク の選択フラグ
+if(!action){
     action=0; // Textリンクが初期値
-    localStorage.setItem('AIURL_Link_action', action); // 🔵ストレージ記入
+    localStorage.setItem('AIURL_Link_action', action); } // 🔵ストレージ記入
+
+let rich=localStorage.getItem('AIURL_Link_rich'); // カードの説明文の行数
+if(!rich){
     rich=0; // 説明文1行表示
     localStorage.setItem('AIURL_Link_rich', rich); } // 🔵ストレージ記入
 
+let ratio=localStorage.getItem('AIURL_Link_ratio'); // カードのサムネイルのアスペクト比
+if(!ratio){
+    ratio=0; // アスペクト 1:1
+    localStorage.setItem('AIURL_Link_ratio', ratio); } // 🔵ストレージ記入
 
 
 let retry=0;
@@ -52,6 +56,29 @@ function env(){
         '46 69 140 55C131 34 102 33 83 37C78 38 69 39 65 43C60 47 63 63 63 '+
         '69M83 143L83 169L111 169L111 143L83 143z"></path></svg>';
 
+    let rc0_svg=
+        '<svg class="rc0" width="20" height="20" viewBox="0 5 150 150">'+
+        '<path style="fill: #333" d="M36 92L36 103L114 103L114 92L36 92z">'+
+        '</path></svg>';
+
+    let rc1_svg=
+        '<svg class="rc1" width="20" height="20" viewBox="0 5 150 150">'+
+        '<path style="fill: #333" d="M36 55L36 66L114 66L114 55L36 55M36 9'+
+        '2L36 103L114 103L114 92L36 92M36 128L36 140L114 140L114 128L36 128z">'+
+        '</path></svg>';
+
+    let tm0_svg=
+        '<svg class="tm0" viewBox="0 0 200 80" width="50" height="20">'+
+        '<rect width="180" height="60" x="10" y="10" fill="none" stroke-width="2" stroke="#000" />'+
+        '<rect width="60" height="60" x="130" y="10" fill="#61afaf" stroke-width="2" stroke="#000" />'+
+        '</svg>';
+
+    let tm1_svg=
+        '<svg class="tm1" viewBox="0 0 200 80" width="50" height="20">'+
+        '<rect width="180" height="60" x="10" y="10" fill="none" stroke-width="2" stroke="#000" />'+
+        '<rect width="80" height="60" x="110" y="10" fill="#61afaf" stroke-width="2" stroke="#000" />'+
+        '</svg>';
+
     let panel=
         '<div id="tr_panel">'+
         '<a href="'+ help_url + '" rel="noopener noreferrer" target="_blank">'+
@@ -59,8 +86,9 @@ function env(){
         '<div id="tr_url"></div>'+
         '<button id="tr_test" class="color_sw">Test</button>'+
         '<button id="tr_select" class="color_sw">'+
-        '<span class="t1">Text</span> <span class="t2">Card</span></button>'+
-        '<button id="tr_rich" class="color_sw"></button>'+
+        '<span class="t_text">Text</span> <span class="t_card">Card</span></button>'+
+        '<button id="tr_rich" class="color_sw">'+ rc0_svg + rc1_svg +'</button>'+
+        '<button id="tr_thum" class="color_sw">'+ tm0_svg + tm1_svg +'</button>'+
         '<button id="tr_copy" class="color_sw">Copy</button>'+
         '<button id="tr_close" class="color_sw">✖</button>'+
         '</div>'+
@@ -70,11 +98,15 @@ function env(){
         '#tr_url { padding: 4px 15px 2px; border: 1px solid #aaa; '+
         'max-width: 80vw; word-break: break-word;} '+
         '#tr_select { width: 90px; white-space: nowrap; } '+
+        '#tr_panel .t_text { opacity: 1; font-size: 16px; } '+
+        '#tr_panel .t_card { opacity: .3; font-size: 12px; } '+
+        '#tr_panel.card .t_text { opacity: .3; font-size: 12px; } '+
+        '#tr_panel.card .t_card { opacity: 1; font-size: 16px; } '+
         '#tr_panel #tr_rich { margin-left: 3px; padding: 2px 0 0; width: 22px; } '+
-        '#tr_panel .t1 { opacity: 1; font-size: 16px; } '+
-        '#tr_panel .t2 { opacity: .3; font-size: 12px; } '+
-        '#tr_panel.card .t1 { opacity: .3; font-size: 12px; } '+
-        '#tr_panel.card .t2 { opacity: 1; font-size: 16px; } '+
+        '#tr_thum { padding: 5px 0 0 !important; vertical-align: -4px; '+
+        'margin-left: 3px !important; } '+
+        'svg.rc1 { display: none; } '+
+        'svg.tm1 { display: none; } '+
         '#tr_panel .color_sw { margin-left: 15px; padding: 2px 8px 0; height: 32px; '+
         'border: 1px solid #aaa; background: linear-gradient(transparent, #c3e0ee); } '+
         '#tr_panel .color_sw:hover { background: linear-gradient(#c3e0ee, transparent); } '+
@@ -111,10 +143,24 @@ function tr_short(){
         if(panel_disp==0){
             panel_disp=1;
             tr_panel.style.display='flex';
+            delay_hover(0);
             main(); }
         else{
             panel_disp=0;
-            tr_panel.style.display='none'; }}}
+            tr_panel.style.display='none';
+            delay_hover(1); }}}
+
+
+
+function delay_hover(n){
+    let nav_belt=document.querySelector('#nav-belt');
+    if(nav_belt){
+        if(n==0){
+            nav_belt.style.pointerEvents='none'; }
+        else{
+            setTimeout(()=>{
+                nav_belt.style.pointerEvents='auto';
+            }, 1000); }}}
 
 
 
@@ -147,6 +193,7 @@ function main(){
         act_limit();
         test();
         select_act();
+        set_thum();
         copy();
         close(); }
 
@@ -184,13 +231,16 @@ function main(){
     function act_limit(){
         let tr_select=document.querySelector('#tr_select');
         let tr_rich=document.querySelector('#tr_rich');
-        if(tr_select && tr_rich){
+        let tr_thum=document.querySelector('#tr_thum');
+        if(tr_select && tr_rich && tr_thum){
             if(page_check()==0){
                 tr_select.style.display='none';
-                tr_rich.style.display='none'; }
+                tr_rich.style.display='none';
+                tr_thum.style.display='none'; }
             else{
-                tr_select.style.display='inline';
-                tr_rich.style.display='inline'; }}}
+                tr_select.style.display='inline-block';
+                tr_rich.style.display='inline-block';
+                tr_thum.style.display='inline-block'; }}}
 
 
 
@@ -211,61 +261,84 @@ function main(){
 
 
     function select_act(){
-        let rich_svg=
-            '<svg width="20" height="20" viewBox="0 5 150 150">'+
-            '<path style="fill: #333" d="M36 55L36 66L114 66L114 55L36 55M36 9'+
-            '2L36 103L114 103L114 92L36 92M36 128L36 140L114 140L114 128L36 128z">'+
-            '</path></svg>';
-
-        let unrich_svg=
-            '<svg width="20" height="20" viewBox="0 5 150 150">'+
-            '<path style="fill: #333" d="M36 92L36 103L114 103L114 92L36 92z">'+
-            '</path></svg>';
-
         let tr_panel=document.querySelector('#tr_panel');
         let tr_select=document.querySelector('#tr_select');
         let tr_rich=document.querySelector('#tr_rich');
-        if(tr_panel && tr_select && tr_rich){
+        let tr_thum=document.querySelector('#tr_thum');
+        if(tr_panel && tr_select && tr_rich && tr_thum){
             sel_disp();
 
             tr_select.onclick=function(){
                 if(action==0){
-                    action=1;
-                    localStorage.setItem('AIURL_Link_action', action); // 🔵ストレージ記入
-                    sel_disp(); }
+                    action=1; }
                 else{
-                    action=0;
-                    localStorage.setItem('AIURL_Link_action', action); // 🔵ストレージ記入
-                    sel_disp(); }}
+                    action=0; }
+                localStorage.setItem('AIURL_Link_action', action); // 🔵ストレージ記入
+                sel_disp(); }
 
             function sel_disp(){
                 if(action==1 && page_check()!=0){
                     action_type=page_check();
-                    tr_rich.style.visibility='visible';
+                    tr_rich.style.display='inline-block';
+                    tr_thum.style.display='inline-block';
                     tr_panel.classList.add('card'); }
                 else{
                     action_type=0;
-                    tr_rich.style.visibility='hidden';
-                    tr_panel.classList.remove('card'); }}}
+                    tr_rich.style.display='none';
+                    tr_thum.style.display='none';
+                    tr_panel.classList.remove('card'); }}
 
 
-        if(tr_rich){
-            if(rich==0){
-                tr_rich.innerHTML=unrich_svg; }
-            else{
-                tr_rich.innerHTML=rich_svg; }
+            rich_disp();
 
             tr_rich.onclick=function(){
                 if(rich==0){
-                    rich=1;
-                    localStorage.setItem('AIURL_Link_rich', rich); // 🔵ストレージ記入
-                    tr_rich.innerHTML=rich_svg; }
+                    rich=1; }
                 else{
-                    rich=0;
-                    localStorage.setItem('AIURL_Link_rich', rich); // 🔵ストレージ記入
-                    tr_rich.innerHTML=unrich_svg; }}}
+                    rich=0; }
+                localStorage.setItem('AIURL_Link_rich', rich); // 🔵ストレージ記入
+                rich_disp(); }
+
+            function rich_disp(){
+                let rc0=document.querySelector('svg.rc0');
+                let rc1=document.querySelector('svg.rc1');
+                if(rc0 && rc1){
+                    if(rich==0){
+                        rc0.style.display='inline-block';
+                        rc1.style.display='none'; }
+                    else{
+                        rc0.style.display='none';
+                        rc1.style.display='inline-block'; }}}}
 
     } //select_act()
+
+
+
+    function set_thum(){
+        let tr_thum=document.querySelector('#tr_thum');
+        if(tr_thum){
+            thum_disp();
+
+            tr_thum.onclick=()=>{
+                if(ratio==0){
+                    ratio=1; }
+                else{
+                    ratio=0; }
+                localStorage.setItem('AIURL_Link_ratio', ratio); // 🔵ストレージ記入
+                thum_disp(); }
+
+            function thum_disp(){
+                let tm0=document.querySelector('svg.tm0');
+                let tm1=document.querySelector('svg.tm1');
+                if(tm0 && tm1){
+                    if(ratio==0){
+                        tm0.style.display='inline-block';
+                        tm1.style.display='none'; }
+                    else{
+                        tm0.style.display='none';
+                        tm1.style.display='inline-block'; }}}}
+
+    } // set_thum()
 
 
 
@@ -371,7 +444,7 @@ function main(){
             item_price='〔Prime Video〕';
 
             item_overview='商品説明';
-            let videoOverview=document.querySelector('.e8yjMf');
+            let videoOverview=document.querySelector('._1H6ABQ');
             if(videoOverview){
                 item_overview=videoOverview.textContent;
                 if(item_overview.length>300){
@@ -388,7 +461,7 @@ function main(){
                 "https://m.media-amazon.com/images/I/01RmK+J4pJL._AC_UL150_.gif"; }
 
 
-        let card_tx=
+        let card_html=
             '<div class="ogpCard_root">'+
             '<article class="ogpCard_wrap" '+
             'contenteditable="false" style="display: inline-block; max-width: 100%">'+
@@ -401,30 +474,30 @@ function main(){
             'overflow: hidden; width: 100%; ';
 
         if(rich==0){
-            card_tx+='padding:16px">'; }
+            card_html+='padding:16px">'; }
         else{
-            card_tx+='padding: 12px 16px 8px">'; }
+            card_html+='padding: 12px 16px 8px">'; }
 
-        card_tx+=
+        card_html+=
             '<span class="ogpCard_title" style="-webkit-box-orient: vertical; '+
             'display: -webkit-box; -webkit-line-clamp: 2; max-height: 48px; font-size: 16px; '+
             'color:#333; text-align: left; font-weight: bold; overflow: hidden; ';
 
         if(rich==0){
-            card_tx+='line-height: 1.4; ">'; }
+            card_html+='line-height: 1.4; ">'; }
         else{
-            card_tx+='line-height: 1.25; flex-shrink: 0; ">'; }
+            card_html+='line-height: 1.25; flex-shrink: 0; ">'; }
 
-        card_tx+=item_title +'</span>'+
+        card_html+=item_title +'</span>'+
             '<span class="ogpCard_description" style="overflow: hidden; text-overflow: ellipsis; '+
             'font-size: 13px; color: #757575; text-align: left; ';
 
         if(rich==0){
-            card_tx+='white-space: nowrap; line-height: 1.6; margin-top: 4px;">'; }
+            card_html+='white-space: nowrap; line-height: 1.6; margin-top: 4px;">'; }
         else{
-            card_tx+='white-space: unset; line-height: 1.4; margin-top: 1px;">'; }
+            card_html+='white-space: unset; line-height: 1.4; margin-top: 1px;">'; }
 
-        card_tx+=item_price +'　'+ item_overview +'</span>'+
+        card_html+=item_price +'　'+ item_overview +'</span>'+
             '<span class="ogpCard_url" style="display: flex; align-items: center; margin-top: auto">'+
             '<span class="ogpCard_iconWrap" style="width: 20px; height: 20px; flex-shrink: 0">'+
             '<img src="https://www.google.com/s2/favicons?domain=https://www.amazon.co.jp" '+
@@ -432,15 +505,23 @@ function main(){
             '<span class="ogpCard_urlText" style="overflow: hidden; text-overflow: ellipsis; '+
             'white-space: nowrap; font-size: 13px; text-align: left; font-weight: bold; '+
             'color: rgb(34, 34, 34);">www.amazon.co.jp</span></span></span>'+
-            '<span class="ogpCard_imageWrap" style="position: relative; width: 120px; '+
-            'height: 120px; flex-shrink: 0">'+
-            '<img alt="card image" class="ogpCard_image" '+
-            'data-ogp-card-image="" height="120" loading="lazy" src="'+ item_img_src +
-            '" style="position: absolute; top: 50%; left: 50%; object-fit: contain; height: 100%; '+
-            'width: 100%; transform: translate(-50%,-50%)" width="120"></span></a>'+
-            '</article></div>';
+            '<span class="ogpCard_imageWrap" style="position: relative; ';
 
-        return card_tx;
+        if(ratio==0){
+            card_html +='width: 120px; '; }
+        else{
+            card_html +='width: 215px; '; }
+
+        card_html +='height: 120px; flex-shrink: 0; overflow: hidden;">'+
+            '<img alt="card image" class="ogpCard_image" data-ogp-card-image="" '+
+            'loading="lazy" src="'+ item_img_src +'" '+
+            'style="position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); '+
+            'height: 100%; min-height: 100%; width: 100%; min-width: 100%; '+
+            'object-fit: contain;">'+
+            '</span></a></article></div>';
+
+        return card_html;
+
     } // creat_card()
 
 
@@ -470,8 +551,8 @@ function main(){
         if(tr_panel && tr_close){
             tr_close.onclick=function(){
                 panel_disp=0;
-                tr_panel.style.display='none'; }}}
+                tr_panel.style.display='none';
+                delay_hover(1); }}}
 
 } // main()
-
 
