@@ -1,0 +1,39 @@
+// ==UserScript==
+// @name        Amazon CardLink ★CAll
+// @namespace        http://tampermonkey.net/
+// @version        0.1
+// @description         Amazon 商品ページのページ種類の調査
+// @author        Amazon User
+// @match        https://www.amazon.co.jp/*
+// @icon        https://www.google.com/s2/favicons?sz=64&domain=amazon.co.jp
+// @grant        none
+// ==/UserScript==
+
+
+let page_class;
+
+setTimeout(()=>{
+
+    let page_dp=document.querySelector('#dp');
+    if(page_dp){
+        page_class=page_dp.className; }
+
+
+    let say=
+        '<div class="say">'+
+        '<div class="inner"></div>'+
+        '<style>'+
+        '.say { position: fixed; z-index: 2000; top: 15px; right : 60px; '+
+        'padding: 15px 20px; color: #000; background: #fff; }'+
+        '</style></div>';
+
+    if(!document.querySelector('.say')){
+        document.body.insertAdjacentHTML('beforeend', say); }
+
+    let inner=document.querySelector('.say .inner');
+    if(inner){
+        inner.textContent=page_class; }
+
+}, 200);
+
+
