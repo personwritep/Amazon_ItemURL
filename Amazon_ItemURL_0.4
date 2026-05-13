@@ -1,0 +1,292 @@
+// ==UserScript==
+// @name         Amazon ItemURL
+// @namespace    http://tampermonkey.net/
+// @version      0.4
+// @description  アマゾンの商品ページのURLを短縮
+// @author       You
+// @match        https://www.amazon.co.jp/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=amazon.co.jp
+// @grant        none
+// ==/UserScript==
+
+
+let panel_disp=0; // パネルの表示フラグ
+
+
+
+let retry=0;
+let interval=setInterval(wait_target, 20);
+function wait_target(){
+    retry++;
+    if(retry>20){ // リトライ制限 20回 0.4secまで
+        clearInterval(interval); }
+    let target=document.body; // 監視 target
+    if(target){
+        clearInterval(interval);
+        env(); }}
+
+
+function env(){
+
+    let panel=
+        '<div id="tr_panel">'+
+        '<div id="tr_url"></div>'+
+        '<button id="tr_test">Test</button>'+
+        '<button id="tr_select">'+
+        '<span class="t1">Text</span> <span class="t2">Card</span></button>'+
+        '<button id="tr_copy">Copy</button>'+
+        '<button id="tr_close">✖</button>'+
+        '</div>'+
+        '<style>#tr_panel { position: fixed; top: 0px; left: 0; z-index: 5000; '+
+        'font: normal 16px/24px Meiryo; padding: 14px 20px 12px; '+
+        'background: #fff; border: 1px solid #aaa; align-items: center; display: none; } '+
+        '#tr_url { padding: 4px 15px 2px; border: 1px solid #aaa; '+
+        'max-width: 80vw; word-break: break-word;} '+
+        '#tr_select, #tr_test, #tr_copy, #tr_close { '+
+        'margin-left: 15px; padding: 2px 10px 0; height: 32px; '+
+        'border: 1px solid #aaa; background: linear-gradient(transparent, #c3e0ee); } '+
+        '#tr_select:hover, #tr_test:hover, #tr_copy:hover, #tr_close:hover { '+
+        'background: linear-gradient(#c3e0ee, transparent ); } '+
+        '</style>';
+
+    if(!document.querySelector('#tr_panel')){
+        document.body.insertAdjacentHTML('beforeend', panel); }}
+
+
+
+let target=document.head; // 監視 target
+let monitor=new MutationObserver(item_page);
+monitor.observe(target, {childList: true}); // 監視開始
+
+function item_page(){
+    let nav_a=document.querySelector('#nav-logo a');
+    if(nav_a){
+        nav_a.style.outline="2px solid red"; }
+
+    let nav=document.querySelector('#nav-logo');
+    if(nav){
+        nav.onclick=function(event){
+            if(!event.ctrlKey && !event.shiftKey){
+                event.preventDefault();
+                tr_short(); }}}}
+
+
+
+function tr_short(){
+    let tr_panel=document.querySelector('#tr_panel');
+    if(tr_panel){
+        if(panel_disp==0){
+            panel_disp=1;
+            tr_panel.style.display='flex';
+            main(); }
+        else{
+            panel_disp=0;
+            tr_panel.style.display='none'; }}}
+
+
+
+function main(){
+    let action=0; // Textリンク Cardリンク の選択フラグ
+
+    let url_input=document.querySelector('#tr_url');
+    if(url_input){
+        let def_url=location.href;
+        let smart_url;
+        let product;
+
+        if(def_url.indexOf('www.amazon.co')==-1){ // Amazon以外
+            smart_url=cut_after(def_url, '?'); }
+        else{ // Amazonの場合
+            if(def_url.indexOf('/b/')==-1 && def_url.indexOf('/b?')==-1 &&
+               def_url.indexOf('/s/')==-1 && def_url.indexOf('/s?')==-1 &&
+               cut_before(def_url, '?').indexOf('node=')==-1){
+                if(def_url.indexOf('/gp/')!=-1){
+                    product=cut_after(cut_before(cut_after(def_url, '?'), '/gp/'), '/ref=');
+                    smart_url='https://www.amazon.co.jp'+ product; }
+                else if(def_url.indexOf('/dp/')!=-1){
+                    product=cut_after(cut_before(cut_after(def_url, '?'), '/dp/'), '/ref=');
+                    smart_url='https://www.amazon.co.jp'+ product; }
+                else{
+                    smart_url=cut_after(def_url, '?'); }}
+            else{
+                smart_url=def_url; }}
+
+        url_input.textContent=smart_url;
+
+        act_limit();
+        test();
+        select_act();
+        copy();
+        close(); }
+
+
+
+    function cut_before(row, string){ // 前方を削除
+        let rs;
+        if(row.indexOf(string)!=-1){
+            rs=row.substring(row.indexOf(string));
+            return rs; }
+        else{
+            return row; }}
+
+    function cut_after(row, string){ // 以降を削除
+        let rs;
+        if(row.indexOf(string)!=-1){
+            rs=row.substring(0, row.indexOf(string));
+            return rs; }
+        else{
+            return row; }}
+
+
+
+    function act_limit(){
+        let productTitle=document.querySelector('#productTitle');
+        if(!productTitle){
+            let tr_select=document.querySelector('#tr_select');
+            let t1=document.querySelector('#tr_select .t1');
+            let t2=document.querySelector('#tr_select .t2');
+            if(tr_select && t1 && t2){
+                action=0;
+                tr_select.style.display='none';
+                t1.style.opacity='1';
+                t2.style.opacity='0.3'; }}}
+
+
+
+    function test(){
+        let tr_test=document.querySelector('#tr_test');
+        if(tr_test){
+            tr_test.onclick=function(){
+                if(panel_disp==1){
+                    let url_input=document.querySelector('#tr_url');
+                    if(url_input.textContent){
+                        window.open(url_input.textContent, '_blank'); }}}}}
+
+
+
+    function select_act(){
+        let tr_select=document.querySelector('#tr_select');
+        let t1=document.querySelector('#tr_select .t1');
+        let t2=document.querySelector('#tr_select .t2');
+        if(tr_select && t1 && t2){
+            sel_disp(action);
+
+            tr_select.onclick=function(){
+                if(action==0){
+                    action=1;
+                    sel_disp(action); }
+                else{
+                    action=0;
+                    sel_disp(action); }}
+
+            function sel_disp(n){
+                if(n==0){
+                    t1.style.opacity='1';
+                    t2.style.opacity='.3'; }
+                else{
+                    t1.style.opacity='0.3';
+                    t2.style.opacity='1'; }}}}
+
+
+
+    function creat_card(){
+        let item_title='Amazon 商品 タイトル';
+        let productTitle=document.querySelector('#productTitle');
+        if(productTitle){
+            item_title=productTitle.textContent; }
+
+        let item_price='商品価格';
+        let PriceDisplay=document.querySelector('#corePriceDisplay_desktop_feature_div .a-offscreen');
+        if(PriceDisplay){
+            item_price=PriceDisplay.textContent; }
+
+        let item_overview='商品説明';
+        let productOverview=document.querySelector('#productOverview_feature_div table');
+        if(productOverview){
+            item_overview=productOverview.textContent;
+            if(item_overview.length>400){
+                item_overview=item_overview.substr(0, 400); }}
+
+        let item_img_src;
+        let item_img=document.querySelector('#main-image-container li.selected img');
+        if(item_img){
+            item_img_src=item_img.getAttribute('src'); }
+        else{
+            //            item_img=document.querySelector('#ebooks-img-wrapper img');   🔴
+            //            item_img=document.querySelector('#imageBlockCommon img');   🔴
+            item_img=document.querySelector('#leftCol img');
+            if(item_img){
+                item_img_src=item_img.getAttribute('src'); }
+            else{
+                item_img_src=
+                    "https://m.media-amazon.com/images/I/01RmK+J4pJL._AC_UL150_.gif"; }}
+
+        let card_tx=
+            '<div class="ogpCard_root">'+
+            '<article class="ogpCard_wrap" '+
+            'contenteditable="false" style="display:inline-block;max-width:100%">'+
+            '<a class="ogpCard_link" data-ogp-card-log="" href="'+ url_input.textContent +
+            '" rel="noopener noreferrer" style="display:flex;justify-content:space-between;'+
+            'overflow:hidden;box-sizing:border-box;width:620px;max-width:100%;'+
+            'height:120px;border:1px solid #e2e2e2;border-radius:4px;background-color:#fff;'+
+            'text-decoration:none" target="_blank">'+
+            '<span class="ogpCard_content" style="display:flex;flex-direction:column;'+
+            'overflow:hidden;width:100%;padding:16px">'+
+            '<span class="ogpCard_title" style="-webkit-box-orient:vertical;'+
+            'display:-webkit-box;-webkit-line-clamp:2;max-height:48px;line-height:1.4;'+
+            'font-size:16px;color:#333;text-align:left;font-weight:bold;overflow:hidden">'+
+            item_title +' '+ item_price +'</span>'+
+            '<span class="ogpCard_description" style="overflow:hidden;text-overflow:ellipsis;'+
+            'white-space:nowrap;line-height:1.6;margin-top:4px;color:#757575;text-align:left;'+
+            'font-size:12px">'+ item_overview +'</span>'+
+            '<span class="ogpCard_url" style="display:flex;align-items:center;margin-top:auto">'+
+            '<span class="ogpCard_iconWrap" style="position:relative;width:20px;height:20px;'+
+            'flex-shrink:0">'+
+            '<img alt="リンク" class="ogpCard_icon" height="20" loading="lazy" '+
+            'src="https://c.stat100.ameba.jp/ameblo/symbols/v3.20.0/svg/gray/editor_link.svg" '+
+            'style="position:absolute;top:0;bottom:0;right:0;left:0;height:100%;'+
+            'max-height:100%" width="20"></span>'+
+            '<span class="ogpCard_urlText" style="overflow:hidden;text-overflow:ellipsis;'+
+            'white-space:nowrap;color:#757575;font-size:12px;text-align:left">'+
+            'www.amazon.co.jp</span></span></span>'+
+            '<span class="ogpCard_imageWrap" style="position:relative;width:120px;'+
+            'height:120px;flex-shrink:0">'+
+            '<img alt="card image" class="ogpCard_image" '+
+            'data-ogp-card-image="" height="120" loading="lazy" src="'+ item_img_src +
+            '" style="position:absolute;top:50%;left:50%;object-fit:contain;height:100%;'+
+            'width:100%;transform:translate(-50%,-50%)" width="120"></span></a>'+
+            '</article></div>';
+
+        return card_tx;
+    } // creat_card()
+
+
+
+    function copy(){
+        let copy_text;
+        let tr_copy=document.querySelector('#tr_copy');
+        if(tr_copy){
+            tr_copy.onclick=function(){
+                if(panel_disp==1){
+                    if (navigator.clipboard){ // copyToClipboardを実行
+                        if(action==0){
+                            copy_text=url_input.textContent; }
+                        else{
+                            copy_text=creat_card(); }
+                        navigator.clipboard.writeText(copy_text);
+
+                        tr_copy.textContent='copied';
+                        setTimeout(()=>{
+                            tr_copy.textContent='Copy'; }, 1000); }}}}}
+
+
+
+    function close(){
+        let tr_panel=document.querySelector('#tr_panel');
+        let tr_close=document.querySelector('#tr_close');
+        if(tr_panel && tr_close){
+            tr_close.onclick=function(){
+                panel_disp=0;
+                tr_panel.style.display='none'; }}}
+
+} // main()
