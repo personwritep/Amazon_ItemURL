@@ -1,0 +1,157 @@
+// ==UserScript==
+// @name         Amazon ItemURL
+// @namespace    http://tampermonkey.net/
+// @version      0.2
+// @description  アマゾンの商品ページのURLを短縮
+// @author       You
+// @match        https://www.amazon.co.jp/*
+// @grant        none
+// ==/UserScript==
+
+
+let panel_disp=0;
+
+
+
+let retry=0;
+let interval=setInterval(wait_target, 20);
+function wait_target(){
+    retry++;
+    if(retry>20){ // リトライ制限 20回 0.4secまで
+        clearInterval(interval); }
+    let target=document.body; // 監視 target
+    if(target){
+        clearInterval(interval);
+        env(); }}
+
+
+function env(){
+
+    let panel=
+        '<div id="tr_panel">'+
+        '<div id="tr_url"></div>'+
+        '<button id="tr_test">Test</button>'+
+        '<button id="tr_copy">Copy</button>'+
+        '</div>'+
+        '<style>#tr_panel { position: fixed; top: 60px; left: 0; z-index: 500; '+
+        'font: normal 16px/24px Meiryo; padding: 14px 20px 12px; '+
+        'background: #fff; border: 1px solid #aaa; display: none; } '+
+        '#tr_url { padding: 4px 15px 2px; border: 1px solid #aaa; '+
+        'max-width: 80vw; word-break: break-word;} '+
+        '#tr_test, #tr_copy { margin-left: 15px; padding: 2px 10px 0; height: 32px; '+
+        'border: 1px solid #aaa; background: linear-gradient(transparent, #c3e0ee); } '+
+        '#tr_test:hover, #tr_copy:hover { '+
+        'background: linear-gradient(#c3e0ee, transparent ); } '+
+        '</style>';
+
+    if(!document.querySelector('#tr_panel')){
+        document.body.insertAdjacentHTML('beforeend', panel); }}
+
+
+
+window.addEventListener('load', function(){
+    ready();
+
+    let nav=document.querySelector('#nav-logo');
+    if(nav){
+        nav.onclick=function(event){
+            if(!event.ctrlKey && !event.shiftKey){
+                event.preventDefault();
+                tr_short(); }}}});
+
+
+
+function ready(){
+    let nav_a=document.querySelector('#nav-logo a');
+    if(nav_a){
+        nav_a.style.outline="2px solid red"; }}
+
+
+
+function tr_short(){
+    let tr_panel=document.querySelector('#tr_panel');
+    if(tr_panel){
+        if(panel_disp==0){
+            panel_disp=1;
+            tr_panel.style.display='flex';
+            query_cut(); }
+        else{
+            panel_disp=0;
+            tr_panel.style.display='none'; }}}
+
+
+
+function query_cut(){
+    let url_input=document.querySelector('#tr_url');
+    if(url_input){
+        let def_url=location.href;
+        let smart_url;
+        let product;
+
+        if(def_url.indexOf('www.amazon.co')==-1){ // Amazon以外
+            smart_url=cut_after(def_url, '?'); }
+        else{ // Amazonの場合
+            if(def_url.indexOf('/b/')==-1 && def_url.indexOf('/b?')==-1 &&
+               def_url.indexOf('/s/')==-1 && def_url.indexOf('/s?')==-1 &&
+               cut_before(def_url, '?').indexOf('node=')==-1){
+                if(def_url.indexOf('/gp/')!=-1){
+                    product=cut_after(cut_before(cut_after(def_url, '?'), '/gp/'), '/ref=');
+                    smart_url='https://www.amazon.co.jp'+ product; }
+                else if(def_url.indexOf('/dp/')!=-1){
+                    product=cut_after(cut_before(cut_after(def_url, '?'), '/dp/'), '/ref=');
+                    smart_url='https://www.amazon.co.jp'+ product; }
+                else{
+                    smart_url=cut_after(def_url, '?'); }}
+            else{
+                smart_url=def_url; }}
+
+        url_input.textContent=smart_url;
+
+        test();
+        copy(); }
+
+
+
+    function cut_before(row, string){ // 前方を削除
+        let rs;
+        if(row.indexOf(string)!=-1){
+            rs=row.substring(row.indexOf(string));
+            return rs; }
+        else{
+            return row; }}
+
+    function cut_after(row, string){ // 以降を削除
+        let rs;
+        if(row.indexOf(string)!=-1){
+            rs=row.substring(0, row.indexOf(string));
+            return rs; }
+        else{
+            return row; }}
+
+
+
+    function test(){
+        let tr_test=document.querySelector('#tr_test');
+        if(tr_test){
+            tr_test.onclick=function(){
+                if(panel_disp==1){
+                    let url_input=document.querySelector('#tr_url');
+                    if(url_input.textContent){
+                        window.open(url_input.textContent, '_blank'); }}}}}
+
+
+
+    function copy(){
+        let tr_copy=document.querySelector('#tr_copy');
+        if(tr_copy){
+            tr_copy.onclick=function(){
+                if(panel_disp==1){
+                    let url_input=document.querySelector('#tr_url');
+                    if(url_input.textContent){
+                        if (navigator.clipboard){ // copyToClipboardを実行
+                            navigator.clipboard.writeText(url_input.textContent);
+                            tr_copy.textContent='copied';
+                            setTimeout(()=>{
+                                tr_copy.textContent='Copy'; }, 1000); }}}}}}
+
+} // query_cut()
