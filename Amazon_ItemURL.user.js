@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Amazon ItemURL
 // @namespace        http://tampermonkey.net/
-// @version        0.9
+// @version        1.0
 // @description        アマゾン商品ページのURLを短縮・リンクカードの生成
 // @author        Amazon User
 // @match        https://www.amazon.co.jp/*
@@ -480,7 +480,7 @@ function main(){
 
         card_html+=
             '<span class="ogpCard_title" style="-webkit-box-orient: vertical; '+
-            'display: -webkit-box; -webkit-line-clamp: 2; max-height: 48px; font-size: 16px; '+
+            'display: -webkit-box; -webkit-line-clamp: 2; max-height: 44px; font-size: 16px; '+
             'color:#333; text-align: left; font-weight: bold; overflow: hidden; ';
 
         if(rich==0){
@@ -554,4 +554,3 @@ function main(){
                 delay_hover(1); }}}
 
 } // main()
-
